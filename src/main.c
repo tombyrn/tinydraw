@@ -7,6 +7,12 @@ int mouse_x, mouse_y;
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
 
+SDL_Texture* plus_texture = NULL;
+SDL_Texture* minus_texture = NULL;
+SDL_Texture* download_texture = NULL;
+SDL_Texture* trash_texture = NULL;
+
+
 struct color {
 	int r, g, b, a;
 };
@@ -54,6 +60,25 @@ struct button decrease_cols;
 struct button save_img;
 struct button clear_canvas;
 
+int load_svg(char* filename, SDL_Texture** texture) {
+	SDL_RWops* rwops = SDL_RWFromFile(filename, "rb");
+	if(rwops == NULL) {
+		fprintf(stderr, "Error reading from file \"%s\"\n", filename);
+		return 0;
+	}
+	
+	SDL_Surface* svg = IMG_LoadSVG_RW(rwops);
+	if(svg == NULL) {
+		fprintf(stderr, "Error parsing file \"%s\"\n", filename);
+		return 0;
+	}
+	*texture = SDL_CreateTextureFromSurface(renderer, svg);
+	
+	SDL_RWclose(rwops);
+	SDL_FreeSurface(svg);
+	return 1;
+}
+
 int initialize_window(void) {
 	if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		fprintf(stderr, "Error initializing SDL\n");
@@ -84,7 +109,11 @@ int initialize_window(void) {
 		fprintf(stderr, "Error creating SDL Renderer.\n");
 		return 0;
 	}
-
+	if(load_svg("./plus.svg", &plus_texture) == 0) return 0;
+	if(load_svg("./minus.svg", &minus_texture) == 0) return 0;
+	if(load_svg("./download.svg", &download_texture) == 0) return 0;
+	if(load_svg("./trash.svg", &trash_texture) == 0) return 0;
+	
 	return 1;
 }
 
@@ -100,21 +129,14 @@ void setup() {
 	for(int i = 0; i < canvas.rows; i++) {
 		canvas.grid[i] = calloc(canvas.cols, sizeof(struct pixel));
 		for (int j = 0; j < canvas.cols; j++) {
-			canvas.grid[i][j].c.r = 255;
-			canvas.grid[i][j].c.g = 255;
-			canvas.grid[i][j].c.b = 255;
+			SET_COLOR(canvas.grid[i][j].c, 255, 255, 255);
 			canvas.grid[i][j].c.a = SDL_ALPHA_OPAQUE;
-			canvas.grid[i][j].rect.w = canvas.pixel_size;
-			canvas.grid[i][j].rect.h = canvas.pixel_size;
-			canvas.grid[i][j].rect.x = j * canvas.pixel_size;
-			canvas.grid[i][j].rect.y = i * canvas.pixel_size;
+			SET_RECT(canvas.grid[i][j].rect, j * canvas.pixel_size, i * canvas.pixel_size, canvas.pixel_size, canvas.pixel_size);
 		}
 	}
 
 	// set drawing color
-	chosen_color.r = 0;
-	chosen_color.g = 0;
-	chosen_color.b = 0;
+	SET_COLOR(chosen_color, 0, 0, 0);
 	chosen_color.a = SDL_ALPHA_OPAQUE;
 
 	// create drawing canvas
@@ -132,10 +154,7 @@ void setup() {
 	}
 
 	// setup rectangle that texture will be drawn to 
-	canvas.rect.x = (SCREEN_WIDTH - CANVAS_RECT_SIZE)/2;
-	canvas.rect.y = (SCREEN_HEIGHT - CANVAS_RECT_SIZE)/2;
-	canvas.rect.w = CANVAS_RECT_SIZE;
-	canvas.rect.h = CANVAS_RECT_SIZE;
+	SET_RECT(canvas.rect, (SCREEN_WIDTH - CANVAS_RECT_SIZE)/2, (SCREEN_HEIGHT - CANVAS_RECT_SIZE)/2, CANVAS_RECT_SIZE, CANVAS_RECT_SIZE);
 
 	// setup buttons
 	SET_RECT(decrease_rows.rect, SCREEN_WIDTH - 83, 25, 25, 25);
@@ -150,17 +169,13 @@ void setup() {
 	SET_RECT(increase_cols.rect, SCREEN_WIDTH - 41, 60, 25, 25);
 	increase_cols.clicked = false;
 	
-	SET_RECT(save_img.rect, SCREEN_WIDTH - 75, SCREEN_HEIGHT - 50, 50, 25);
+	SET_RECT(save_img.rect, SCREEN_WIDTH - 83, SCREEN_HEIGHT - 50, 25, 25);
 	save_img.clicked = false;
 
-	SET_RECT(clear_canvas.rect, 25, SCREEN_HEIGHT - 50, 50, 25);
+	SET_RECT(clear_canvas.rect, 25, SCREEN_HEIGHT - 50, 25, 25);
 	clear_canvas.clicked = false;
 
 	// setup palette
-	// palette.container.x = 25;
-	// palette.container.y = (SCREEN_HEIGHT - CANVAS_RECT_SIZE)/2;
-	// palette.container.w = 50;
-	// palette.container.h = (20*25 + 10);
 	SET_RECT(palette.container, 25, (SCREEN_HEIGHT - CANVAS_RECT_SIZE)/2, 50, 20*25+10);
 
 	palette.num_colors = 50;
@@ -423,12 +438,13 @@ void render() {
 
 	// render buttons
 	SDL_SetRenderDrawColor(renderer, 211, 211, 211, 255);
-	SDL_RenderFillRect(renderer, &increase_rows.rect);
-	SDL_RenderFillRect(renderer, &decrease_rows.rect);
-	SDL_RenderFillRect(renderer, &increase_cols.rect);
-	SDL_RenderFillRect(renderer, &decrease_cols.rect);
-	SDL_RenderFillRect(renderer, &save_img.rect);
-	SDL_RenderFillRect(renderer, &clear_canvas.rect);
+	SDL_RenderCopy(renderer, minus_texture, NULL, &decrease_rows.rect);
+	SDL_RenderCopy(renderer, plus_texture, NULL, &increase_rows.rect);
+	SDL_RenderCopy(renderer, minus_texture, NULL, &decrease_cols.rect);
+	SDL_RenderCopy(renderer, plus_texture, NULL, &increase_cols.rect);
+
+	SDL_RenderCopy(renderer, download_texture, NULL, &save_img.rect);
+	SDL_RenderCopy(renderer, trash_texture, NULL, &clear_canvas.rect);
 
 	// render palette
 	SDL_RenderDrawRect(renderer, &palette.container);
@@ -441,13 +457,15 @@ void render() {
 }
 
 void destroy_window() {
-	for (int i = 0; i < canvas.rows; i++)
+	for(int i = 0; i < canvas.rows; i++)
 		free(canvas.grid[i]);
 	free(canvas.grid);
 
-	if (canvas.texture) SDL_DestroyTexture(canvas.texture);
-	if (renderer) SDL_DestroyRenderer(renderer);
-	if (window) SDL_DestroyWindow(window);
+	if(plus_texture) SDL_DestroyTexture(plus_texture);
+	if(minus_texture) SDL_DestroyTexture(minus_texture);
+	if(canvas.texture) SDL_DestroyTexture(canvas.texture);
+	if(renderer) SDL_DestroyRenderer(renderer);
+	if(window) SDL_DestroyWindow(window);
 	SDL_Quit();
 }
 
