@@ -3,6 +3,7 @@
 int last_frame_time = 0;
 int is_running = 0;
 int mouse_x, mouse_y;
+int last_row = -1, last_col = -1;
 
 SDL_Window* window = NULL;
 SDL_Renderer* renderer = NULL;
@@ -119,8 +120,8 @@ int initialize_window(void) {
 
 void setup() {
 	// setup canvas
-	canvas.rows = 50;
-	canvas.cols = 50;
+	canvas.rows = 160;
+	canvas.cols = 144;
 	canvas.pixel_size = 12;
 	canvas.is_drawing = false;
 
@@ -307,6 +308,30 @@ void save_canvas() {
 }
 
 
+void draw_line(int x0, int y0, int x1, int y1) {
+    int dx = abs(x1 - x0);
+    int dy = abs(y1 - y0);
+
+    int sy = (y0 < y1) ? 1 : -1;
+    int sx = (x0 < x1) ? 1 : -1;
+
+    int err = (dx > dy ? dx : -dy) / 2;
+    int e2;
+
+    while (true) {
+        if (y0 >= 0 && y0 < canvas.rows &&
+            x0 >= 0 && x0 < canvas.cols) {
+            canvas.grid[y0][x0].c = chosen_color;
+        }
+
+        if (y0 == y1 && x0 == x1) break;
+
+        e2 = err;
+        if (e2 > -dx) { err -= dy; x0 += sx; }
+        if (e2 <  dy) { err += dx; y0 += sy; }
+    }
+}
+
 void process_input() {
 	SDL_Event event;
 	SDL_GetMouseState(&mouse_x, &mouse_y);
@@ -340,6 +365,8 @@ void process_input() {
 				break;
 			case SDL_MOUSEBUTTONUP:
 				canvas.is_drawing = false;
+				last_row = -1;
+				last_col = -1;
 				break;
 		}
 	}
@@ -369,8 +396,15 @@ void update() {
 			int col = tex_x / canvas.pixel_size;
 
 			if(row >= 0 && row < canvas.rows && col >= 0 && col < canvas.cols) {
-				struct pixel* clicked_pixel = &canvas.grid[row][col];
-				clicked_pixel->c = chosen_color;
+				// struct pixel* clicked_pixel = &canvas.grid[row][col];
+				// clicked_pixel->c = chosen_color;
+				if(last_row == -1)
+					canvas.grid[row][col].c = chosen_color;
+				else
+					draw_line(last_col, last_row, col, row);
+
+				last_row = row;
+				last_col = col;
 			}
 			
 		}
