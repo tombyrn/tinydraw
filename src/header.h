@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_image.h>
+#include <SDL2/SDL_ttf.h>
 
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT  650
@@ -27,3 +28,40 @@
             (c).r = _r;\
             (c).g = _g;\
             (c).b = _b;
+
+
+
+struct color {
+	int r, g, b, a;
+};
+
+struct button {
+	SDL_Rect rect;
+	bool clicked;
+};
+
+struct pixel {
+	struct color c;
+	SDL_Rect rect;
+};
+
+struct canvas {
+	int rows, cols;
+	int pixel_size;
+	bool is_drawing;
+	struct pixel** grid;
+
+	SDL_Rect rect;
+	SDL_Texture* texture;
+} canvas;
+
+struct swatch {
+	struct button b;
+	struct color c;
+};
+
+struct palette {
+	struct swatch* colors;
+	SDL_Rect container;
+	int num_colors;
+} palette;

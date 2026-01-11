@@ -1,7 +1,7 @@
 all: build run
 
 build:
-	gcc -O3 -Wall -g -std=c99 ./src/main.c -lSDL2 -o tinydraw -lSDL2_image
+	gcc -O3 -Wall -g -std=c99 ./src/main.c -lSDL2 -o tinydraw -lSDL2_image -lSDL2_ttf
 
 run:
 	./tinydraw

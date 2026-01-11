@@ -13,42 +13,9 @@ SDL_Texture* minus_texture = NULL;
 SDL_Texture* download_texture = NULL;
 SDL_Texture* trash_texture = NULL;
 
-
-struct color {
-	int r, g, b, a;
-};
-
-struct button {
-	SDL_Rect rect;
-	bool clicked;
-};
-
-struct pixel {
-	struct color c;
-	SDL_Rect rect;
-};
-
-struct canvas {
-	int rows, cols;
-	int pixel_size;
-	bool is_drawing;
-	struct pixel** grid;
-
-	SDL_Rect rect;
-	SDL_Texture* texture;
-} canvas;
-
-struct swatch {
-	struct button b;
-	struct color c;
-};
-
-struct palette {
-	struct swatch* colors;
-	SDL_Rect container;
-	int num_colors;
-} palette;
-
+SDL_Texture* font_texture = NULL;
+TTF_Font* font;
+SDL_Rect font_rect;
 
 struct color chosen_color;
 
@@ -61,6 +28,7 @@ struct button decrease_cols;
 struct button save_img;
 struct button clear_canvas;
 
+// loads SVG file into SDL_Texture
 int load_svg(char* filename, SDL_Texture** texture) {
 	SDL_RWops* rwops = SDL_RWFromFile(filename, "rb");
 	if(rwops == NULL) {
@@ -80,6 +48,28 @@ int load_svg(char* filename, SDL_Texture** texture) {
 	return 1;
 }
 
+// creates text surface with proper dimension then loads it into the font texture
+void create_text() {
+	if(font_texture != NULL) SDL_DestroyTexture(font_texture);
+
+	SDL_Color font_color = { 255, 255, 255, 255 };
+	char* font_text = malloc(255);
+	sprintf(font_text, "%dX%d", canvas.rows, canvas.cols);
+
+	SDL_Surface* font_surface = TTF_RenderText_Blended(font, font_text, font_color);
+	if(!font_surface) {
+		fprintf(stderr, "Error creating font surface.\n");
+		SDL_Quit();
+	}
+	font_texture = SDL_CreateTextureFromSurface(renderer, font_surface);
+	if(!font_texture) {
+		fprintf(stderr, "Error creating font texture.\n");
+		SDL_Quit();
+	}
+	free(font_text);
+	SDL_FreeSurface(font_surface);
+}
+
 int initialize_window(void) {
 	if(SDL_Init(SDL_INIT_EVERYTHING) != 0) {
 		fprintf(stderr, "Error initializing SDL\n");
@@ -88,6 +78,11 @@ int initialize_window(void) {
 
 	if(IMG_Init(IMG_INIT_PNG) != IMG_INIT_PNG) {
 		fprintf(stderr, "Error initializing SDL_Image\n");
+		return 0;
+	}
+	
+	if(TTF_Init() != 0) {
+		fprintf(stderr, "Error initializing SDL_TTF\n");
 		return 0;
 	}
 
@@ -114,6 +109,12 @@ int initialize_window(void) {
 	if(load_svg("./minus.svg", &minus_texture) == 0) return 0;
 	if(load_svg("./download.svg", &download_texture) == 0) return 0;
 	if(load_svg("./trash.svg", &trash_texture) == 0) return 0;
+
+	font = TTF_OpenFont("font.TTF", 24);
+	if (!font) {
+		fprintf(stderr, "Error loading font.\n");
+		return 0;
+	}
 	
 	return 1;
 }
@@ -176,6 +177,10 @@ void setup() {
 	SET_RECT(clear_canvas.rect, 25, SCREEN_HEIGHT - 50, 25, 25);
 	clear_canvas.clicked = false;
 
+	// setup text rectangle
+	SET_RECT(font_rect, canvas.rect.x + canvas.rect.w - 100, 0, 100, 30);
+	create_text();
+
 	// setup palette
 	SET_RECT(palette.container, 25, (SCREEN_HEIGHT - CANVAS_RECT_SIZE)/2, 50, 20*25+10);
 
@@ -207,11 +212,13 @@ void setup() {
 	SET_COLOR(palette.colors[4].c, 0, 0, 255);
 	SET_COLOR(palette.colors[5].c, 0, 255, 255);
 
+
 	// fill the texture with white pixels
 	SDL_SetRenderTarget(renderer, canvas.texture);
 	SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
 	SDL_RenderClear(renderer);
 	SDL_SetRenderTarget(renderer, NULL);
+
 }
 
 // set button struct clicked attribute to true
@@ -413,18 +420,22 @@ void update() {
 	// handle button clicks
 	if(increase_rows.clicked) {
 		resize_canvas_grid(canvas.rows+1, canvas.cols);
+		create_text();
 		increase_rows.clicked = false;
 	}
 	if(canvas.rows > 1 && decrease_rows.clicked) {
 		resize_canvas_grid(canvas.rows-1, canvas.cols);
+		create_text();
 		decrease_rows.clicked = false;
 	}
 	if(increase_cols.clicked) {
 		resize_canvas_grid(canvas.rows, canvas.cols+1);
+		create_text();
 		increase_cols.clicked = false;
 	}
 	if(canvas.cols > 1 && decrease_cols.clicked) {
 		resize_canvas_grid(canvas.rows, canvas.cols-1);
+		create_text();
 		decrease_cols.clicked = false;
 	}
 	if(save_img.clicked) {
@@ -454,7 +465,9 @@ void update() {
 
 
 void render() {
-
+	SDL_SetRenderTarget(renderer, NULL);
+	SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+	SDL_RenderClear(renderer);
 	// render pixels to texture
 	SDL_SetRenderTarget(renderer, canvas.texture);
 	for(int i = 0; i < canvas.rows; i++) {
@@ -486,6 +499,9 @@ void render() {
 		SDL_SetRenderDrawColor(renderer, palette.colors[i].c.r, palette.colors[i].c.g, palette.colors[i].c.b, palette.colors[i].c.a);
 		SDL_RenderFillRect(renderer, &palette.colors[i].b.rect);
 	}
+
+	// render dimension text
+	SDL_RenderCopy(renderer, font_texture, NULL, &font_rect);
 
 	SDL_RenderPresent(renderer);
 }
