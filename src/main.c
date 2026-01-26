@@ -54,7 +54,7 @@ void create_text() {
 
 	SDL_Color font_color = { 255, 255, 255, 255 };
 	char* font_text = malloc(255);
-	sprintf(font_text, "%dX%d", canvas.rows, canvas.cols);
+	sprintf(font_text, "%dX%d", canvas.cols, canvas.rows);
 
 	SDL_Surface* font_surface = TTF_RenderText_Blended(font, font_text, font_color);
 	if(!font_surface) {
@@ -121,8 +121,8 @@ int initialize_window(void) {
 
 void setup() {
 	// setup canvas
-	canvas.rows = 160;
-	canvas.cols = 144;
+	canvas.rows = 144;
+	canvas.cols = 160;
 	canvas.pixel_size = 12;
 	canvas.is_drawing = false;
 
